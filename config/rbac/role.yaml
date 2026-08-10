@@ -1,0 +1,45 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - seaweedfs.com
+  resources:
+  - seaweeds
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - storage.aryan.dev
+  resources:
+  - s3bucketmappings
+  - seaweedfsinstances
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - storage.aryan.dev
+  resources:
+  - seaweedfsinstances/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - storage.aryan.dev
+  resources:
+  - seaweedfsinstances/status
+  verbs:
+  - get
+  - patch
+  - update

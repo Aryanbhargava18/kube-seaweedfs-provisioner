@@ -1,0 +1,9 @@
+apiVersion: storage.aryan.dev/v1alpha1
+kind: SeaweedFSInstance
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-seaweedfs-provisioner
+    app.kubernetes.io/managed-by: kustomize
+  name: seaweedfsinstance-sample
+spec:
+  # TODO(user): Add fields here
