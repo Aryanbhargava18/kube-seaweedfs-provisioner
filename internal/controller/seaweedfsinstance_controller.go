@@ -95,13 +95,13 @@ func (r *SeaweedFSInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// 2. Observe Seaweed CR readiness from Kubernetes state
-	status, ok := seaweed.Object["status"].(map[string]interface{})
+	status, ok := seaweed.Object["status"].(map[string]any)
 	if !ok {
 		// Status not yet populated by the SeaweedFS operator (or test simulation)
 		return r.updatePhase(ctx, &instance, "ProvisioningCluster")
 	}
 
-	s3, ok := status["s3"].(map[string]interface{})
+	s3, ok := status["s3"].(map[string]any)
 	if !ok {
 		return r.updatePhase(ctx, &instance, "WaitingForMasterStatus")
 	}
@@ -125,13 +125,13 @@ func (r *SeaweedFSInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return err
 		}
 
-		spec, ok := backupStorage.Object["spec"].(map[string]interface{})
+		spec, ok := backupStorage.Object["spec"].(map[string]any)
 		if !ok {
-			spec = make(map[string]interface{})
+			spec = make(map[string]any)
 		}
 
 		// Map the endpoint to the constant FilerS3Port (8333) as identified in research
-		s3Spec := map[string]interface{}{
+		s3Spec := map[string]any{
 			"endpoint": fmt.Sprintf("http://%s-s3.%s.svc.cluster.local:8333", instance.Name, instance.Namespace),
 			// In a real implementation, credentialsSecretRef would be populated here
 		}
