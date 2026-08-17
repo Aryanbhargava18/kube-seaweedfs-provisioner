@@ -35,7 +35,11 @@ Instead of blindly waiting for a generic cluster ready state, the provisioner ob
 `masterStatus.ReadyReplicas == masterStatus.Replicas` 
 
 ### 3. Conditional Dependency Mapping
-Only after the strict Filer-readiness conditions are met will the provisioner apply the dependent `S3BucketMapping` CR. This guarantees that any downstream controllers handling S3 buckets will not attempt to connect to a non-existent port.
+Only after the strict readiness conditions are met will the provisioner apply the dependent `S3BucketMapping` CR. 
+
+*(Note: `S3BucketMapping` is an intentional stand-in for OpenEverest's `BackupStorage` CR. It exists purely to test the `controller-runtime` reconciliation mechanism: external CR readiness → dependent resource creation → idempotency, without needing to import the entire OpenEverest framework).*
+
+This guarantees that any downstream controllers handling S3 buckets will not attempt to connect to a non-existent port.
 
 ```mermaid
 sequenceDiagram
