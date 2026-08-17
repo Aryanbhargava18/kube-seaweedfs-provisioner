@@ -3,17 +3,17 @@
 # and allow the plugins properly work.
 # More info: https://book.kubebuilder.io/reference/project-config.html
 cliVersion: 4.15.0
-domain: openeverest.io
+domain: aryan.dev
 layout:
 - go.kubebuilder.io/v4
-projectName: kube-seaweedfs-provisioner
+projectName: provider-seaweedfs-prototype
 repo: github.com/Aryanbhargava18/kube-seaweedfs-provisioner
 resources:
 - api:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: openeverest.io
+  domain: aryan.dev
   group: object
   kind: SeaweedFSInstance
   path: github.com/Aryanbhargava18/kube-seaweedfs-provisioner/api/v1alpha1

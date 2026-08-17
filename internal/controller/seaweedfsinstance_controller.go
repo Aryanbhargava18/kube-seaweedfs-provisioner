@@ -72,13 +72,13 @@ func (r *SeaweedFSInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 		// Enforce the Filer readiness constraint identified in Issue #2255 research.
 		// A Seaweed CR without spec.filer can report isReady=true while dropping S3 traffic.
-		spec, ok := seaweed.Object["spec"].(map[string]interface{})
+		spec, ok := seaweed.Object["spec"].(map[string]any)
 		if !ok {
-			spec = make(map[string]interface{})
+			spec = make(map[string]any)
 		}
 		// Explicitly ensure spec.filer is present to guarantee S3 gateway deployment
 		if _, exists := spec["filer"]; !exists {
-			spec["filer"] = make(map[string]interface{})
+			spec["filer"] = make(map[string]any)
 		}
 		seaweed.Object["spec"] = spec
 		return nil

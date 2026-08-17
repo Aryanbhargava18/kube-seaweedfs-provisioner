@@ -43,7 +43,7 @@ var _ = Describe("SeaweedFSInstance Controller", func() {
 	)
 
 	Context("When reconciling a resource", func() {
-		It("should successfully execute the OpenEverest lifecycle", func() {
+		It("should successfully execute the dynamic lifecycle", func() {
 			ctx := context.Background()
 			lookupKey := types.NamespacedName{Name: InstanceName, Namespace: InstanceNamespace}
 
@@ -68,14 +68,14 @@ var _ = Describe("SeaweedFSInstance Controller", func() {
 				return k8sClient.Get(ctx, lookupKey, seaweed)
 			}, timeout, interval).Should(Succeed())
 
-			spec, ok := seaweed.Object["spec"].(map[string]interface{})
+			spec, ok := seaweed.Object["spec"].(map[string]any)
 			Expect(ok).To(BeTrue())
 			_, filerExists := spec["filer"]
 			Expect(filerExists).To(BeTrue(), "spec.filer should be explicitly injected by the controller")
 
 			// Check OwnerReference
 			owners := seaweed.GetOwnerReferences()
-			Expect(len(owners)).To(Equal(1))
+			Expect(owners).To(HaveLen(1))
 			Expect(owners[0].Kind).To(Equal("SeaweedFSInstance"))
 
 			By("Verifying S3BucketMapping is NOT created before readiness")
@@ -87,8 +87,8 @@ var _ = Describe("SeaweedFSInstance Controller", func() {
 			}, time.Second*2, interval).Should(BeTrue())
 
 			By("Simulating Kubernetes status update to mark Seaweed as ready")
-			seaweed.Object["status"] = map[string]interface{}{
-				"masterStatus": map[string]interface{}{
+			seaweed.Object["status"] = map[string]any{
+				"masterStatus": map[string]any{
 					"Replicas":      int64(3),
 					"ReadyReplicas": int64(3),
 				},
@@ -102,9 +102,9 @@ var _ = Describe("SeaweedFSInstance Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			// Verify the endpoint is mapped correctly to port 8333
-			bsSpec, ok := backupStorage.Object["spec"].(map[string]interface{})
+			bsSpec, ok := backupStorage.Object["spec"].(map[string]any)
 			Expect(ok).To(BeTrue())
-			s3Spec, ok := bsSpec["s3"].(map[string]interface{})
+			s3Spec, ok := bsSpec["s3"].(map[string]any)
 			Expect(ok).To(BeTrue())
 			Expect(s3Spec["endpoint"]).To(Equal(fmt.Sprintf("http://%s-filer.%s.svc.cluster.local:8333", InstanceName, InstanceNamespace)))
 
