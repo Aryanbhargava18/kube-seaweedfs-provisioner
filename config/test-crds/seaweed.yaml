@@ -24,10 +24,20 @@ spec:
               filer:
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
+              s3:
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
           status:
             type: object
             properties:
               masterStatus:
+                type: object
+                properties:
+                  Replicas:
+                    type: integer
+                  ReadyReplicas:
+                    type: integer
+              s3:
                 type: object
                 properties:
                   Replicas:

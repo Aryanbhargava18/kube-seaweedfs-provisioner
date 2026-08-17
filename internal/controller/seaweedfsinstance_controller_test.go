@@ -72,6 +72,8 @@ var _ = Describe("SeaweedFSInstance Controller", func() {
 			Expect(ok).To(BeTrue())
 			_, filerExists := spec["filer"]
 			Expect(filerExists).To(BeTrue(), "spec.filer should be explicitly injected by the controller")
+			_, s3Exists := spec["s3"]
+			Expect(s3Exists).To(BeTrue(), "spec.s3 should be explicitly injected by the controller")
 
 			// Check OwnerReference
 			owners := seaweed.GetOwnerReferences()
@@ -88,7 +90,7 @@ var _ = Describe("SeaweedFSInstance Controller", func() {
 
 			By("Simulating Kubernetes status update to mark Seaweed as ready")
 			seaweed.Object["status"] = map[string]any{
-				"masterStatus": map[string]any{
+				"s3": map[string]any{
 					"Replicas":      int64(3),
 					"ReadyReplicas": int64(3),
 				},
@@ -106,7 +108,7 @@ var _ = Describe("SeaweedFSInstance Controller", func() {
 			Expect(ok).To(BeTrue())
 			s3Spec, ok := bsSpec["s3"].(map[string]any)
 			Expect(ok).To(BeTrue())
-			Expect(s3Spec["endpoint"]).To(Equal(fmt.Sprintf("http://%s-filer.%s.svc.cluster.local:8333", InstanceName, InstanceNamespace)))
+			Expect(s3Spec["endpoint"]).To(Equal(fmt.Sprintf("http://%s-s3.%s.svc.cluster.local:8333", InstanceName, InstanceNamespace)))
 
 			By("Verifying idempotency: updating the instance does not recreate children")
 			// Trigger a reconciliation by patching the instance

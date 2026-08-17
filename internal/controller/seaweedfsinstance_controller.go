@@ -76,9 +76,12 @@ func (r *SeaweedFSInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		if !ok {
 			spec = make(map[string]any)
 		}
-		// Explicitly ensure spec.filer is present to guarantee S3 gateway deployment
+		// Explicitly ensure spec.filer and spec.s3 are present to guarantee standalone S3 gateway deployment
 		if _, exists := spec["filer"]; !exists {
 			spec["filer"] = make(map[string]any)
+		}
+		if _, exists := spec["s3"]; !exists {
+			spec["s3"] = make(map[string]any)
 		}
 		seaweed.Object["spec"] = spec
 		return nil
@@ -98,13 +101,13 @@ func (r *SeaweedFSInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return r.updatePhase(ctx, &instance, "ProvisioningCluster")
 	}
 
-	masterStatus, ok := status["masterStatus"].(map[string]interface{})
+	s3, ok := status["s3"].(map[string]interface{})
 	if !ok {
 		return r.updatePhase(ctx, &instance, "WaitingForMasterStatus")
 	}
 
-	replicas := parseInt64(masterStatus["Replicas"])
-	readyReplicas := parseInt64(masterStatus["ReadyReplicas"])
+	replicas := parseInt64(s3["Replicas"])
+	readyReplicas := parseInt64(s3["ReadyReplicas"])
 
 	if replicas == 0 || readyReplicas < replicas {
 		// Cluster is not yet ready according to Kubernetes state
@@ -129,7 +132,7 @@ func (r *SeaweedFSInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		// Map the endpoint to the constant FilerS3Port (8333) as identified in research
 		s3Spec := map[string]interface{}{
-			"endpoint": fmt.Sprintf("http://%s-filer.%s.svc.cluster.local:8333", instance.Name, instance.Namespace),
+			"endpoint": fmt.Sprintf("http://%s-s3.%s.svc.cluster.local:8333", instance.Name, instance.Namespace),
 			// In a real implementation, credentialsSecretRef would be populated here
 		}
 		spec["s3"] = s3Spec
