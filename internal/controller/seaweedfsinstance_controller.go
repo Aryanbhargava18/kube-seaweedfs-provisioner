@@ -161,7 +161,7 @@ func (r *SeaweedFSInstanceReconciler) updatePhase(ctx context.Context, instance 
 	return ctrl.Result{}, nil
 }
 
-func parseInt64(val interface{}) int64 {
+func parseInt64(val any) int64 {
 	if val == nil {
 		return 0
 	}
