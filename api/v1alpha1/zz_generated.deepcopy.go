@@ -125,3 +125,5 @@ func (in *SeaweedFSInstanceStatus) DeepCopy() *SeaweedFSInstanceStatus {
 	in.DeepCopyInto(out)
 	return out
 }
+
+// clean up later
