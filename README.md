@@ -1,130 +1,110 @@
 # kube-seaweedfs-provisioner
 
-![Go Version](https://img.shields.io/badge/go-1.21-blue.svg)
-![Kubernetes Compatibility](https://img.shields.io/badge/kubernetes-1.28+-blue.svg)
-![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
-
-A Kubernetes operator built using `controller-runtime` to explore dynamic provisioning of SeaweedFS topologies and conditional dependency mapping.
-
-## Motivation & Problem Statement
-
-SeaweedFS is a highly scalable distributed file system. When deploying it on Kubernetes (via the official SeaweedFS operator), you interact with the `seaweeds.seaweedfs.com/v1` Custom Resource.
-
-However, a critical operational gap exists when integrating SeaweedFS into broader infrastructure platforms (like automated database-as-a-service or automated backup platforms): **S3 Compatibility Readiness**.
-
-A generic SeaweedFS Ready condition is not sufficient for an S3 provider because the operator only evaluates the S3 component when `spec.s3` is configured. The prototype therefore makes both the Filer backend and standalone S3 gateway explicit and waits for the S3 component's readiness before creating the dependent resource.
-
-This project (`kube-seaweedfs-provisioner`) was built to demonstrate a strict, automated mitigation to this problem.
-
-## Architecture
-
-This controller manages a higher-level CR (`SeaweedFSInstance`) which orchestrates the deployment.
-
-### 1. Desired State Enforcement
-When a `SeaweedFSInstance` is created, the reconciler generates an unstructured `Seaweed` CR. It explicitly injects the mandatory `spec.filer` and `spec.s3` constraints to guarantee that the standalone S3 gateway will be scheduled:
-
-```yaml
-spec:
-  filer: {} # Injected by the provisioner
-  s3: {}    # Injected by the provisioner
-```
-
-### 2. External Status Observation
-Instead of blindly waiting for a generic cluster ready state, the provisioner observes the upstream `Seaweed` CR's detailed S3 status. It watches for:
-`status.s3.readyReplicas == status.s3.replicas` 
-
-### 3. Conditional Dependency Mapping
-Only after the strict S3 readiness conditions are met will the provisioner apply the dependent `S3BucketMapping` CR. 
-
-`S3BucketMapping` is only a test double for the dependency represented by OpenEverest's `BackupStorage`. The prototype validates controller behavior; it does not claim to validate the real OpenEverest `provider-runtime` integration.
+A Kubernetes controller built using `controller-runtime` demonstrating dynamic provisioning, status observation, and conditional dependency mapping for SeaweedFS S3 object storage topologies.
 
 ```text
-SeaweedFSInstance
-        |
-        v
-controller-runtime
-        |
-        v
-Seaweed CR
-  ├── spec.filer
-  └── spec.s3
-        |
-        v
-SeaweedFS operator
-        |
-        +── Filer
-        |
-        +── S3 Gateway
-              |
-              v
-        <cluster>-s3:8333
-              |
-              v
-       S3BucketMapping
+       +---------------------------------------------+
+       |         SeaweedFSInstance Resource          |
+       |  (api: storage.aryan.dev/v1alpha1)          |
+       +----------------------+----------------------+
+                              |
+                     [ Reconcile Loop ]
+                              |
+       1. Inject spec.filer & spec.s3
+                              v
+       +---------------------------------------------+
+       |         Seaweed CR (Unstructured)           |
+       |  (seaweedfs.com/v1 - Managed by Operator)   |
+       +----------------------+----------------------+
+                              |
+       2. Observe status.s3.readyReplicas == replicas
+                              v
+             +----------------+----------------+
+             |                                 |
+             | S3 Not Ready                    | S3 Ready (Phase: Ready)
+             v                                 v
+   [ Phase: WaitingForClusterReady ]  [ 3. Apply S3BucketMapping CR ]
+   (Yield & Watch Owned CR)           (Endpoint: http://<name>-s3:8333)
 ```
 
-## Verification Boundary
+---
 
-**What this repository proves:**
-- `spec.filer` + `spec.s3` are rendered by the controller.
-- dependent resource is withheld before required readiness.
-- S3 readiness causes dependent-resource creation.
-- repeated reconciliation is idempotent.
-- owner references/watch behavior works as implemented.
+## The Problem: S3 Compatibility Readiness
 
-**What it does not prove:**
-- the real SeaweedFS operator produces the expected status under every deployment condition.
-- real S3 API compatibility.
-- OpenEverest `provider-runtime` integration.
-- real `BackupStorage` behavior.
+When integrating SeaweedFS via the official `seaweedfs.com/v1` operator into automated database-as-a-service platforms (such as OpenEverest backup storage engines), a subtle lifecycle gap exists:
 
-## Getting Started
+* **Conditional Operator Logic:** In `seaweed_controller.go`, the upstream operator only evaluates S3 readiness conditions if `Spec.S3 != nil`. A Seaweed cluster without explicit S3 configuration can report generic cluster readiness (`isReady=true`) while silently rejecting S3 backup traffic.
+* **Pre-Readiness Gating:** Creating dependent backup resources (`BackupStorage` / bucket bindings) before the standalone S3 gateway pods are in `Ready` state causes backup tasks to fail with immediate connection timeouts.
 
-### Prerequisites
-- `go` version v1.21.0+
-- `docker` version 17.03+.
-- `kubectl` version v1.11.3+.
-- A local Kubernetes cluster (e.g., `kind` or `minikube`).
+`kube-seaweedfs-provisioner` implements an automated, idempotent controller pattern to resolve this gap.
 
-### Local Development
+---
 
-1. **Install CRDs** into your cluster:
-   ```sh
-   make install
-   ```
+## Controller Reconciler State Machine
 
-2. **Run the operator** outside the cluster (for debugging/development):
-   ```sh
-   make run
-   ```
+The reconciler executes a deterministic multi-stage lifecycle:
 
-3. **Deploy a test instance**:
-   ```sh
-   kubectl apply -f config/samples/object_v1alpha1_seaweedfsinstance.yaml
-   ```
+| Phase | Reconciler Action | Transition Trigger |
+|---|---|---|
+| `ProvisioningCluster` | Renders unstructured `Seaweed` CR with injected `spec.filer` and `spec.s3`, sets `ControllerReference`. | CR successfully applied to API server. |
+| `WaitingForMasterStatus` | Watches child `Seaweed` CR status subresource. | Operator reports master/filer topology. |
+| `WaitingForClusterReady` | Evaluates `status.s3.readyReplicas == status.s3.replicas`. Requeues if S3 gateway is pending. | All S3 gateway replica pods reach `Ready`. |
+| `Ready` | Renders dependent `S3BucketMapping` CR pointing to port `8333` S3 gateway service (`http://<name>-s3.<ns>.svc:8333`). | Endpoint verified; controller enters steady state. |
 
-## Testing Strategy
+---
 
-This repository employs `envtest` to validate the complex status-observation loop. Because the upstream SeaweedFS operator is not running during unit tests, the test suite simulates the upstream operator by dynamically patching the `.status.s3` of the unstructured `Seaweed` CR during the reconciliation loop.
+## Architectural Boundaries
 
-Run the test suite:
-```sh
+### What this repository validates:
+* **Dynamic CR Rendering:** Reconciler injects explicit `spec.filer` and `spec.s3` constraints into child unstructured objects without tight compile-time Go package coupling on upstream operator internal types.
+* **Status-Gated Dependency Mapping:** Dependent bucket resources are withheld until exact S3 gateway pod readiness is achieved.
+* **Idempotency & Lifecycle Safety:** Repeated reconciliation runs produce zero mutation churn and retain `OwnerReference` trees for garbage collection.
+
+### Explicit Scope Clarification:
+* `S3BucketMapping` is a test double representing OpenEverest's `BackupStorage` dependency. The prototype validates controller reconciliation behavior and readiness gating; it does not claim to validate the internal OpenEverest `provider-runtime` multi-cluster interface.
+
+---
+
+## Local Development & Testing
+
+### Test Suite (`envtest`)
+
+The test suite uses `sigs.k8s.io/controller-runtime/pkg/envtest` (a local control plane with `etcd` and `kube-apiserver`) to simulate operator status changes dynamically during reconciliation:
+
+```bash
+# Run Ginkgo / Gomega controller integration suite
 make test
 ```
 
+### Running Locally on a Cluster
+
+```bash
+# 1. Install Custom Resource Definitions
+make install
+
+# 2. Run controller against local kubeconfig
+make run
+
+# 3. Apply sample instance
+kubectl apply -f config/samples/object_v1alpha1_seaweedfsinstance.yaml
+```
+
+---
+
 ## Project Structure
 
-- `api/v1alpha1/`: Contains the schema definitions for `SeaweedFSInstance`.
-- `internal/controller/`: The core reconciliation logic. Unstructured clients are used here to avoid hard Go dependencies on the upstream operator.
-- `config/`: Kubebuilder YAML definitions for CRDs, RBAC, and Webhooks.
-- `config/test-crds/`: Minimal mock CRDs for `Seaweed` and `S3BucketMapping` required by `envtest`.
+```text
+├── api/v1alpha1/                  # CRD Schema definitions for SeaweedFSInstance
+├── internal/controller/           # Core Reconciler & status observation logic
+├── config/
+│   ├── crd/                       # Generated Kubebuilder CRDs
+│   ├── rbac/                      # RBAC role bindings for Seaweed & Bucket CRs
+│   └── test-crds/                 # Mock CRD schemas for envtest lifecycle simulation
+└── Makefile                       # Build, test, and code generation targets
+```
+
+---
 
 ## License
 
-Copyright 2026 Aryan Bhargava.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
+Apache 2.0
