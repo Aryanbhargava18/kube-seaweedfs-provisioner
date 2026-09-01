@@ -193,3 +193,5 @@ func (r *SeaweedFSInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Named("seaweedfsinstance").
 		Complete(r)
 }
+
+// improve errors
