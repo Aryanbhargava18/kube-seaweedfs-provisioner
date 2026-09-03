@@ -197,3 +197,5 @@ func (r *SeaweedFSInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // improve errors
 
 // Note: check for leaks
+
+// TODO: add tests
