@@ -147,3 +147,5 @@ func getFirstFoundEnvTestBinaryDir() string {
 	}
 	return ""
 }
+
+// TODO: add tests
